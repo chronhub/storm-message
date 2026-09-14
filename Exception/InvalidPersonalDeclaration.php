@@ -80,4 +80,13 @@ final class InvalidPersonalDeclaration extends LogicException
             $type,
         ));
     }
+
+    public static function nonFiniteFallback(string $subject, string $key): self
+    {
+        return new self(sprintf(
+            'The #[Personal(subject: "%s")] fallback "%s" must be finite so the payload remains JSON encodable after forgetting.',
+            $subject,
+            $key,
+        ));
+    }
 }

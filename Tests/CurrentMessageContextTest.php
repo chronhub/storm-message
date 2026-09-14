@@ -6,6 +6,7 @@ namespace Storm\Message\Tests;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Storm\Contracts\Message\MessageContext;
 use Storm\Message\ContextValues;
 use Storm\Message\CurrentMessageContext;
 use Storm\Message\Exception\UnbalancedContextFrame;
@@ -17,8 +18,7 @@ final class CurrentMessageContextTest extends TestCase
     {
         $context = new CurrentMessageContext;
 
-        $this->assertNull($context->correlationId());
-        $this->assertNull($context->actorId());
+        $this->assertContext(ContextValues::empty(), $context);
     }
 
     #[Test]
@@ -80,11 +80,52 @@ final class CurrentMessageContextTest extends TestCase
         // handling window in a long-running worker.
         $context = new CurrentMessageContext;
         $context->bind(new ContextValues(correlationId: 'leaked-outer'));
-        $context->bind(new ContextValues(correlationId: 'leaked-inner'));
+        $context->bind(new ContextValues('inner', 'cause', 'actor', 'user', 'tenant', ['trace' => 'inner']));
 
         $context->reset();
 
-        $this->assertNull($context->correlationId());
+        $this->assertContext(ContextValues::empty(), $context);
+
+        $context->bind(new ContextValues(correlationId: 'next'));
+        $context->clear();
+
+        $this->assertContext(ContextValues::empty(), $context);
+        $this->expectException(UnbalancedContextFrame::class);
+        $context->clear();
+    }
+
+    #[Test]
+    public function nested_frames_restore_every_context_value(): void
+    {
+        $context = new CurrentMessageContext;
+        $parent = new ContextValues('parent', 'parent-cause', 'parent-actor', 'user', 'parent-tenant', ['trace' => 'parent']);
+        $child = new ContextValues('child', 'child-cause', 'child-actor', 'service', 'child-tenant', ['trace' => 'child']);
+
+        $context->bind($parent);
+        $context->bind($child);
+        $this->assertContext($child, $context);
+
+        $context->bind(ContextValues::empty());
+        $this->assertContext(ContextValues::empty(), $context);
+
+        $context->clear();
+        $this->assertContext($child, $context);
+
+        $context->clear();
+        $this->assertContext($parent, $context);
+
+        $context->clear();
+        $this->assertContext(ContextValues::empty(), $context);
+    }
+
+    private function assertContext(MessageContext $expected, MessageContext $actual): void
+    {
+        $this->assertSame($expected->correlationId(), $actual->correlationId());
+        $this->assertSame($expected->causationId(), $actual->causationId());
+        $this->assertSame($expected->actorId(), $actual->actorId());
+        $this->assertSame($expected->actorType(), $actual->actorType());
+        $this->assertSame($expected->tenantId(), $actual->tenantId());
+        $this->assertSame($expected->bag(), $actual->bag());
     }
 
     #[Test]

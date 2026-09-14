@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PayloadShapeProbe;
+
+use Storm\Message\HasConstructablePayload;
+
+use function PHPStan\Testing\assertType;
+
+final class TypedMessage
+{
+    /** @use HasConstructablePayload<array{foo: string}> */
+    use HasConstructablePayload;
+
+    public string $foo { get => $this->payload['foo']; }
+
+    public string $typo { get => $this->payload['fooo']; }
+
+    public static function valid(): self
+    {
+        return new self(['foo' => 'value']);
+    }
+
+    public static function invalid(): self
+    {
+        return new self(['fooo' => 'value']);
+    }
+}
+
+final class UntypedMessage
+{
+    use HasConstructablePayload;
+}
+
+assertType('array{foo: string}', TypedMessage::valid()->toPayload());
+assertType('array<string, mixed>', (new UntypedMessage(['anything' => 1]))->toPayload());

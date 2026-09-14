@@ -25,13 +25,16 @@ use Storm\Message\Exception\InvalidMessageException;
  * a raw string accepted as an escape hatch for ad-hoc keys. Values are JSON-friendly scalars or
  * arrays, so a Message maps cleanly onto the event store's native columns and header jsonb column.
  *
- * The class is immutable: every mutator returns a new instance.
+ * The class is immutable: every mutator returns a new instance. Header arrays are copied
+ * recursively on entry to detach PHP references without converting scalar types.
  *
  * Two doors in, one promise. The constructor and `withHeader()` are WRITE gates holding the same
  * invariants: framework headers well typed and non-blank, the reserved `__` namespace closed to
  * unknown keys, custom keys non-blank and trimmed, and every CUSTOM value inside the JSON tree, no
- * object, no non-finite float, no sparse int-keyed level. So an envelope accepted in memory is
- * serializable and rereadable without changing its identity. The ONE deliberate asymmetry is
+ * object, no non-finite float, no sparse int-keyed level. Custom strings and keys must be UTF-8,
+ * leaves must be JSON scalars or null, and custom values allow at most 509 nested array levels.
+ * This leaves room for the header bag and wire envelope within the default JSON decoding depth.
+ * The custom value gate checks encoding constraints at write time. The ONE deliberate asymmetry is
  * provenance: the constructor accepts framework keys spelled as raw strings, the wholesale-bag
  * door the enrichers and codecs ride, where `withHeader()` reserves the `__` namespace to the
  * `Header` enum alone, one key at a time. Hydration from DURABLE data goes through the named
@@ -42,6 +45,11 @@ use Storm\Message\Exception\InvalidMessageException;
  */
 final readonly class Message
 {
+    /**
+     * @var array<string, scalar|array<mixed>|null>
+     */
+    private array $headers;
+
     /**
      * The strict write gate: the whole bag is validated here, so the reserved-namespace and
      * well-typed promises no longer depend on which construction door was chosen.
@@ -61,7 +69,7 @@ final readonly class Message
      */
     public function __construct(
         private object $message,
-        private array $headers = [],
+        array $headers = [],
     ) {
         if ($message instanceof self) {
             throw InvalidMessageException::cannotWrapMessage();
@@ -86,6 +94,8 @@ final readonly class Message
 
             self::assertJsonTree($key, $value);
         }
+
+        $this->headers = self::detachHeaders($headers);
     }
 
     /**
@@ -93,18 +103,20 @@ final readonly class Message
      * bag validation deliberately, since its callers own it: `deserialize()` asserts the header form
      * at the codec boundary, and a stored header was validated when written. A row carrying a
      * reserved key from a past or future framework version must stay readable, not brick the read.
+     * Array copying retains historical keys and shapes, but bounds nesting to the stored header JSON depth.
      * Never a shortcut for fresh construction: a new envelope goes through the constructor or
      * `withHeader()`.
      *
      * @param  array<string, scalar|array<mixed>|null>  $headers
      *
-     * @throws InvalidMessageException when attempting to wrap another Message
+     * @throws InvalidMessageException when attempting to wrap another Message or when stored
+     *                                 arrays exceed the stored header nesting depth
      */
     public static function fromStored(object $message, array $headers = []): self
     {
         // strict construction on an empty bag, then the stored headers ride in through `clone with`,
         // the only validation-free door, and it only opens from inside this class
-        return clone (new self($message), ['headers' => $headers]);
+        return clone (new self($message), ['headers' => self::detachHeaders($headers)]);
     }
 
     /**
@@ -138,8 +150,7 @@ final readonly class Message
      *                                 the wrong wire type or is blank, since a mistyped
      *                                 CorrelationId would otherwise read back as a silent null, and
      *                                 a lost correlation means a saga that never advances; or when a
-     *                                 custom value leaves the JSON tree, namely an object, a
-     *                                 non-finite float, or an int-castable array key
+     *                                 custom key or value violates the JSON tree contract
      */
     public function withHeader(HeaderKey|string $key, int|float|string|bool|array|null $value): self
     {
@@ -160,7 +171,7 @@ final readonly class Message
         }
 
         $headers = $this->headers;
-        $headers[$name] = $value;
+        $headers[$name] = is_array($value) ? self::detachHeaders($value, 1) : $value;
 
         // this instance's bag already passed its gate and the delta was just checked; re-validating
         // the whole bag would tax every enricher step on the append path for nothing
@@ -168,28 +179,30 @@ final readonly class Message
     }
 
     /**
-     * The value gate of the CUSTOM header surface: the docblock announces a JSON tree, the
-     * signature alone would accept any `array<mixed>`. What this gate refuses:
+     * Validates custom values before they reach a JSON codec.
      *
-     * - An object nested in an array keeps a live reference, so the "immutable" Message mutates
-     *   from outside and comes back as a plain array after the wire;
+     * Refuses:
+     * - Objects and resources
+     * - Non-finite floats
+     * - Invalid UTF-8 in strings or keys
+     * - Sparse or mixed int-keyed array levels
+     * - More than 509 nested array levels, including cycles
      *
-     * - `NAN`/`INF` serialize past construction and explode later, at persistence, far from the
-     *   writer;
+     * Lists retain their JSON array shape. PHP casts integer-like string keys before this gate,
+     * so an original string key that PHP converts to an integer is not distinguishable here.
      *
-     * - A sparse or mixed int-keyed level flips between JSON list and object shapes across the
-     *   round-trip.
-     *
-     * All die HERE, at the write, naming the key, so the wire contract stays checked where it is
-     * authored. Genuine LISTS pass: `array_is_list` levels are the JSON arrays the tree announces.
-     * Honest limit: a writer's `"0"`-string key is cast to int by PHP BEFORE any gate can see it,
-     * and that single ambiguity is unobservable here, so it stays with the writer.
-     *
-     * @throws InvalidMessageException when the value holds an object, a non-finite float, or a
-     *                                 sparse/mixed int-keyed array level
+     * @throws InvalidMessageException when a custom key or value violates these constraints
      */
-    private static function assertJsonTree(string $key, mixed $value): void
+    private static function assertJsonTree(string $key, mixed $value, int $depth = 0): void
     {
+        if ($depth === 0 && preg_match('//u', $key) !== 1) {
+            throw InvalidMessageException::unjsonableHeaderValue($key, 'the header key is not valid UTF-8');
+        }
+
+        if (is_string($value) && preg_match('//u', $value) !== 1) {
+            throw InvalidMessageException::unjsonableHeaderValue($key, 'a string is not valid UTF-8');
+        }
+
         // unreachable through withHeader(), whose parameter type excludes objects; the constructor
         // bag is array<string, mixed> at runtime, so the top level needs the same refusal the
         // nested levels always had
@@ -202,20 +215,52 @@ final readonly class Message
         }
 
         if (! is_array($value)) {
-            return; // remaining scalars and null are JSON-faithful by construction
+            if ($value !== null && ! is_scalar($value)) {
+                throw InvalidMessageException::unjsonableHeaderValue($key, 'only JSON scalars, null and arrays are accepted');
+            }
+
+            return;
+        }
+
+        if ($depth >= 509) {
+            throw InvalidMessageException::unjsonableHeaderValue($key, 'array nesting exceeds the 509 levels available inside the wire envelope');
         }
 
         $isList = array_is_list($value);
 
         foreach ($value as $nestedKey => $nested) {
+            if (is_string($nestedKey) && preg_match('//u', $nestedKey) !== 1) {
+                throw InvalidMessageException::unjsonableHeaderValue($key, 'an array key is not valid UTF-8');
+            }
+
             if (! $isList && is_int($nestedKey)) {
                 throw InvalidMessageException::unjsonableHeaderValue($key, sprintf('array key %d sits in a non-list level — a sparse or mixed int-keyed array flips between JSON list and object shapes across the round-trip', $nestedKey));
             }
 
             // a nested object needs no arm of its own: the recursion's object refusal above meets
             // it first, one refusal for every depth
-            self::assertJsonTree($key, $nested);
+            self::assertJsonTree($key, $nested, $depth + 1);
         }
+    }
+
+    /**
+     * @template T of array
+     *
+     * @param  T  $values
+     * @return T
+     */
+    private static function detachHeaders(array $values, int $depth = 0): array
+    {
+        if ($depth > 510) {
+            throw InvalidMessageException::unjsonableHeaderValue('headers', 'array nesting exceeds the 510 levels available inside stored header JSON');
+        }
+
+        $copy = [];
+        foreach ($values as $key => $value) {
+            $copy[$key] = is_array($value) ? self::detachHeaders($value, $depth + 1) : $value;
+        }
+
+        return $copy; // @phpstan-ignore return.type (Every key and leaf type is preserved; only reference cells are detached.)
     }
 
     /**

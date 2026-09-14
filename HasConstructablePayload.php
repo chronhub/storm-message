@@ -20,19 +20,21 @@ use Storm\Contracts\Message\SerializablePayload;
  * Keep the composer `final` and constructor-consistent; the PayloadEvent test fixture is the
  * pattern.
  *
+ * @template TPayload of array<string, mixed> = array<string, mixed>
+ *
  * @see \Storm\Contracts\Message\SerializablePayload
  */
 trait HasConstructablePayload
 {
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  TPayload  $payload
      */
     public function __construct(
         private readonly array $payload,
     ) {}
 
     /**
-     * @return array<string, mixed>
+     * @return TPayload
      */
     public function toPayload(): array
     {
@@ -44,6 +46,7 @@ trait HasConstructablePayload
      */
     public static function fromPayload(array $payload): static
     {
-        return new static($payload);
+        // Stored payloads retain the broad deserialization contract and are trusted here.
+        return new static($payload); // @phpstan-ignore argument.type
     }
 }

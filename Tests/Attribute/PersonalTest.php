@@ -141,6 +141,37 @@ final class PersonalTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('non_finite_fallbacks')]
+    public function rejects_a_non_finite_fallback(float $fallback): void
+    {
+        $this->expectException(InvalidPersonalDeclaration::class);
+        $this->expectExceptionMessage('fallback "name" must be finite');
+
+        new Personal('subject', ['name'], ['name' => $fallback]);
+    }
+
+    /**
+     * @return iterable<string, array{float}>
+     */
+    public static function non_finite_fallbacks(): iterable
+    {
+        yield 'not a number' => [NAN];
+        yield 'positive infinity' => [INF];
+        yield 'negative infinity' => [-INF];
+    }
+
+    #[Test]
+    public function preserves_finite_fallbacks_without_coercion(): void
+    {
+        foreach ([0.0, -0.0, PHP_FLOAT_MAX, -PHP_FLOAT_MAX, PHP_FLOAT_MIN, 1.5, PHP_INT_MAX, false, '', 'forgotten', null] as $fallback) {
+            $personal = new Personal('subject', ['name'], ['name' => $fallback]);
+
+            self::assertSame($fallback, $personal->fallback['name']);
+            self::assertSame($fallback, json_decode(json_encode($personal->fallback['name'], JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION), true, flags: JSON_THROW_ON_ERROR));
+        }
+    }
+
+    #[Test]
     public function a_null_fallback_is_a_legitimate_design_choice(): void
     {
         $personal = new Personal('customer_id', ['email'], ['email' => null]);

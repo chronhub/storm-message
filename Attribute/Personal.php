@@ -46,7 +46,7 @@ final readonly class Personal
      *                                    `$keys` is empty or not a list of unique non-blank strings,
      *                                    when a declared key has no `$fallback` entry, or when a
      *                                    `$fallback` entry names an undeclared key or is not
-     *                                    scalar|null
+     *                                    scalar|null, or is a non-finite float
      */
     public function __construct(
         public string $subject,
@@ -96,6 +96,10 @@ final readonly class Personal
 
             if ($value !== null && ! is_scalar($value)) { // @phpstan-ignore booleanAnd.alwaysFalse, function.alreadyNarrowedType
                 throw InvalidPersonalDeclaration::nonScalarFallback($this->subject, (string) $key, get_debug_type($value));
+            }
+
+            if (is_float($value) && ! is_finite($value)) {
+                throw InvalidPersonalDeclaration::nonFiniteFallback($this->subject, (string) $key);
             }
         }
     }
