@@ -27,6 +27,7 @@ return static function (ContainerConfigurator $container): void {
             dirname(__DIR__).'/Message.php',
             dirname(__DIR__).'/Header.php',
             dirname(__DIR__).'/ContextValues.php',
+            dirname(__DIR__).'/TraceHeaders.php',
             dirname(__DIR__).'/EventType.php',
             dirname(__DIR__).'/Attribute/', // declarations, not services
             dirname(__DIR__).'/Exception/',

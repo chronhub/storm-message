@@ -38,6 +38,8 @@ trait HasConstructablePayload
      */
     public function toPayload(): array
     {
+        // public by `SerializablePayload`: narrowed, a using class cannot load, which mutation
+        // testing scores as an error rather than a kill, so its config leaves that mutant out
         return $this->payload;
     }
 
@@ -46,6 +48,7 @@ trait HasConstructablePayload
      */
     public static function fromPayload(array $payload): static
     {
+        // public by `SerializablePayload`, like `toPayload()`, and left out of mutation the same way.
         // Stored payloads retain the broad deserialization contract and are trusted here.
         return new static($payload); // @phpstan-ignore argument.type
     }

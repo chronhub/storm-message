@@ -8,13 +8,14 @@
         "php": ">=8.5",
         "chronhub/storm-clock": "self.version",
         "chronhub/storm-contracts": "self.version",
+        "chronhub/storm-support": "self.version",
         "symfony/dependency-injection": "^8.1",
         "symfony/service-contracts": "^3.6",
         "symfony/uid": "^8.1"
     },
     "require-dev": {
-        "phpstan/phpstan": "^2.2.8",
-        "phpunit/phpunit": "^13.3.0",
+        "phpstan/phpstan": "^2.2.16",
+        "phpunit/phpunit": "^13.4.0",
         "symfony/process": "8.1.*"
     },
     "autoload": {

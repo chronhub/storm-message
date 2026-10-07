@@ -6,6 +6,7 @@ namespace Storm\Message\Exception;
 
 use RuntimeException;
 use Storm\Message\Header;
+use Storm\Support\Text\Str;
 
 /**
  * Thrown when a Message is constructed or mutated with an invalid payload or header; a malformed
@@ -22,7 +23,7 @@ final class InvalidMessageException extends RuntimeException
     {
         return new self(sprintf(
             'The header key "%s" is blank or carries surrounding whitespace: "x", " x" and "x " would be three DIFFERENT headers, a silent near-collision.',
-            addcslashes($key, "\0..\37\177"),
+            Str::printable($key),
         ));
     }
 

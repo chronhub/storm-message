@@ -6,6 +6,7 @@ namespace Storm\Message;
 
 use Storm\Contracts\Message\HeaderKey;
 use Storm\Message\Exception\InvalidMessageException;
+use Storm\Support\Text\Str;
 
 /**
  * The framework's canonical message header keys.
@@ -139,7 +140,7 @@ enum Header: string implements HeaderKey
 
         // blank spans Unicode: an NBSP-only id renders empty everywhere it is read, yet survives an
         // ASCII trim as present and would poison deduplication as a visually blank key
-        if (! $expectsInt && preg_match('/^[\s\p{Z}]*$/u', $value) === 1) {
+        if (! $expectsInt && Str::isBlank($value)) {
             throw InvalidMessageException::blankHeader($this->value);
         }
     }

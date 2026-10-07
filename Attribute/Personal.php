@@ -7,6 +7,7 @@ namespace Storm\Message\Attribute;
 use Attribute;
 use Storm\Message\EventType;
 use Storm\Message\Exception\InvalidPersonalDeclaration;
+use Storm\Support\Text\Str;
 
 /**
  * Declares which payload keys of an event carry personal data, and whose they are.
@@ -54,7 +55,7 @@ final readonly class Personal
         public array $fallback,
     ) {
         // phpstan deems several of these dead under the very phpdoc types they defend.
-        if (self::isBlank($this->subject)) {
+        if (Str::isBlank($this->subject)) {
             throw InvalidPersonalDeclaration::emptySubject();
         }
 
@@ -67,7 +68,7 @@ final readonly class Personal
         }
 
         foreach ($this->keys as $key) {
-            if (! is_string($key) || self::isBlank($key)) { // @phpstan-ignore function.alreadyNarrowedType
+            if (! is_string($key) || Str::isBlank($key)) { // @phpstan-ignore function.alreadyNarrowedType
                 throw InvalidPersonalDeclaration::blankKey($this->subject);
             }
         }
@@ -102,13 +103,5 @@ final readonly class Personal
                 throw InvalidPersonalDeclaration::nonFiniteFallback($this->subject, (string) $key);
             }
         }
-    }
-
-    // Blank to every renderer: empty, ASCII whitespace, or Unicode separators, which /u alone does
-    // not fold into \s; the subject and keys address durable ciphered payloads, so they get the
-    // same blank test the header values carry
-    private static function isBlank(string $value): bool
-    {
-        return preg_match('/^[\s\p{Z}]*$/u', $value) === 1;
     }
 }

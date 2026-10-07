@@ -39,10 +39,10 @@ final readonly class EnricherRegistry implements MessageEnricher
 
     public function enrich(Message $message): Message
     {
-        foreach ($this->enrichers as $enricher) {
-            $message = $enricher->enrich($message);
-        }
-
-        return $message;
+        return array_reduce(
+            $this->enrichers,
+            static fn (Message $current, MessageEnricher $enricher): Message => $enricher->enrich($current),
+            $message,
+        );
     }
 }

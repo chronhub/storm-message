@@ -171,6 +171,9 @@ final readonly class Message
         }
 
         $headers = $this->headers;
+        // the value sits one level under the bag; `assertJsonTree()` above already stops it at 509
+        // levels, below the 510 the detach allows, so this depth never reaches that refusal, which
+        // is why the mutation config leaves its equivalent `0` and `2` mutants out
         $headers[$name] = is_array($value) ? self::detachHeaders($value, 1) : $value;
 
         // this instance's bag already passed its gate and the delta was just checked; re-validating

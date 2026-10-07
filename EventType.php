@@ -7,6 +7,7 @@ namespace Storm\Message;
 use Attribute;
 use Storm\Contracts\Chronicler\EventTypeMapper;
 use Storm\Message\Exception\InvalidEventType;
+use Storm\Support\Text\Str;
 
 /**
  * Declares the stable stored type of a domain event: its alias, decoupled from the PHP FQCN so it
@@ -46,7 +47,7 @@ final readonly class EventType
         public array $replaces = [],
     ) {
         // phpstan deems several of these dead under the very phpdoc types they defend.
-        if (self::isBlank($this->alias)) {
+        if (Str::isBlank($this->alias)) {
             throw InvalidEventType::emptyAlias();
         }
 
@@ -63,7 +64,7 @@ final readonly class EventType
                 throw InvalidEventType::nonStringReplacedAlias($this->alias, get_debug_type($replaced));
             }
 
-            if (self::isBlank($replaced)) {
+            if (Str::isBlank($replaced)) {
                 throw InvalidEventType::emptyReplacedAlias($this->alias);
             }
 
@@ -77,13 +78,5 @@ final readonly class EventType
             // where the declaration is written, so it stays canonical
             throw InvalidEventType::duplicateReplacedAlias($this->alias);
         }
-    }
-
-    // Blank to every renderer: empty, ASCII whitespace, or Unicode separators, which /u alone does
-    // not fold into \s; the alias is the DURABLE type column, the most permanent value a blank
-    // could reach, so it gets the same blank test the header values carry
-    private static function isBlank(string $value): bool
-    {
-        return preg_match('/^[\s\p{Z}]*$/u', $value) === 1;
     }
 }
