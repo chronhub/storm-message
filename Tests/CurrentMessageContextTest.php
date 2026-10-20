@@ -57,10 +57,8 @@ final class CurrentMessageContextTest extends TestCase
     #[Test]
     public function clear_restores_the_parent_frame_after_a_nested_bind(): void
     {
-        // Regression: a nested dispatch is a handler that dispatches another message, running bind
-        // then clear. Without nesting, that wipes the enclosing message's context, so a later handler
-        // such as SagaOutcomeRouter reads a null correlation and silently skips. bind() and clear()
-        // nest, so the parent is restored.
+        // a nested dispatch runs bind then clear; without nesting it would wipe the enclosing context,
+        // and a later handler such as SagaOutcomeRouter would read a null correlation and silently skip
         $context = new CurrentMessageContext;
         $context->bind(new ContextValues(correlationId: 'outer'));
 
@@ -76,8 +74,8 @@ final class CurrentMessageContextTest extends TestCase
     #[Test]
     public function reset_wipes_leaked_frames(): void
     {
-        // the kernel.reset safety net: an unbalanced app-side bind must not outlive its
-        // handling window in a long-running worker.
+        // kernel.reset: an unbalanced application bind must not outlive its handling window in a
+        // long-running worker
         $context = new CurrentMessageContext;
         $context->bind(new ContextValues(correlationId: 'leaked-outer'));
         $context->bind(new ContextValues('inner', 'cause', 'actor', 'user', 'tenant', ['trace' => 'inner']));
@@ -131,8 +129,8 @@ final class CurrentMessageContextTest extends TestCase
     #[Test]
     public function clear_without_a_bound_frame_fails_loud(): void
     {
-        // a double-clear would otherwise silently pop the PARENT's frame; the wiring bug must
-        // explode at its source, not as mis-attributed context far away.
+        // a double clear would otherwise silently pop the parent's frame; the wiring bug must fail at
+        // its source, not as misattributed context far away
         $this->expectException(UnbalancedContextFrame::class);
 
         new CurrentMessageContext()->clear();

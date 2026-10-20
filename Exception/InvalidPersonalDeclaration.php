@@ -7,12 +7,12 @@ namespace Storm\Message\Exception;
 use LogicException;
 
 /**
- * A `#[Personal]` attribute was declared with an invalid shape.
+ * An invalid `#[Personal]` declaration: a bad shape, or a class that is not a domain event.
  *
- * A declaration bug, so a `LogicException`. The attribute's own constructor throws it, and the
- * compile-time scan instantiates that constructor, so it explodes at container build, the loudest
- * possible place, instead of writing rows whose personal fields are unprotected, or unrecoverable
- * once their subject's key is destroyed.
+ * A declaration bug, so a `LogicException`. The attribute's own constructor throws it for a shape,
+ * and the compile-time scan, which instantiates that constructor, throws it for a carrier, so it
+ * fails at container build, the earliest point, instead of writing rows whose personal fields are
+ * unprotected, or unrecoverable once their subject's key is destroyed.
  */
 final class InvalidPersonalDeclaration extends LogicException
 {
@@ -78,6 +78,14 @@ final class InvalidPersonalDeclaration extends LogicException
             $subject,
             $key,
             $type,
+        ));
+    }
+
+    public static function notADomainEvent(string $class): self
+    {
+        return new self(sprintf(
+            '%s declares #[Personal] but is not a domain event — only an event row stores the alias its envelopes bind, so personal data lives on domain events alone.',
+            $class,
         ));
     }
 

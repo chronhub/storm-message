@@ -7,14 +7,15 @@ namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 /*
  * Message package wiring.
  *
- * Registers the package's services: the enrichers, registry, identity generator, and the
- * ambient holders, current message context and current stored header. Wired with autowire
- * + autoconfigure, so the declarative attributes on the implementations take effect:
- *   - #[AutoconfigureTag('storm.message_enricher', priority)] on each enricher
- *   - #[AutowireIterator('storm.message_enricher')] on EnricherRegistry
- *   - #[AsAlias(...)] on EnricherRegistry, UuidV7MetaIdentityGenerator and CurrentMessageContext
+ * Registers the package's services: the enrichers, the registry, the identity generator, and the
+ * ambient holders of the current message context and the current stored header. Autowiring and
+ * autoconfiguration make the declarative attributes on the implementations take effect:
  *
- * Value objects Message, Header, and ContextValues are not services, nor are the exceptions.
+ * - `#[AutoconfigureTag('storm.message_enricher', priority)]` on each enricher
+ * - `#[AutowireIterator('storm.message_enricher')]` on `EnricherRegistry`
+ * - `#[AsAlias(...)]` on `EnricherRegistry`, `UuidV7MetaIdentityGenerator` and `CurrentMessageContext`
+ *
+ * The value objects `Message`, `Header` and `ContextValues` are not services, nor are the exceptions.
  */
 return static function (ContainerConfigurator $container): void {
     $services = $container->services()

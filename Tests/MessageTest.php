@@ -87,9 +87,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function with_header_reaches_the_bottom_of_a_nested_tree(): void
     {
-        // The guard walks the tree rather than its first level, and depth is exactly where an
-        // offending value hides: a bag assembled by several enrichers nests, and a check that
-        // stopped at the top would pass the header, then break at persistence with no key named.
+        // the guard walks the whole tree: a bag assembled by several enrichers nests, and a check stopping
+        // at the top would pass the header, then break at persistence with no key named
         $this->expectException(InvalidMessageException::class);
         $this->expectExceptionMessageIsOrContains('live reference');
 
@@ -118,18 +117,28 @@ final class MessageTest extends TestCase
     #[Test]
     public function with_header_rejects_a_raw_string_key_using_the_reserved_prefix(): void
     {
-        // the `__` prefix is reserved for framework headers; the raw-string escape hatch must not be
-        // allowed to shadow one.
+        // the `__` prefix is reserved for framework headers; a raw-string key must not be allowed to
+        // shadow one
         $this->expectException(InvalidMessageException::class);
 
         new Message(new stdClass)->withHeader('__aggregate_version', 'oops');
     }
 
     #[Test]
+    public function with_header_refuses_a_padded_reserved_key_as_padded(): void
+    {
+        // the blank check runs before the prefix check, so the refusal names the near-collision
+        $this->expectException(InvalidMessageException::class);
+        $this->expectExceptionMessageIsOrContains('carries surrounding whitespace');
+
+        new Message(new stdClass)->withHeader('__x ', 'v');
+    }
+
+    #[Test]
     public function with_header_rejects_a_custom_header_key_shadowing_the_reserved_prefix(): void
     {
-        // implementing HeaderKey does not grant the `__` namespace: the guard tests PROVENANCE,
-        // the framework's own Header enum, not the key's PHP type.
+        // implementing HeaderKey does not grant the `__` namespace: the guard tests provenance, the
+        // framework's own Header enum, not the key's PHP type
         $this->expectException(InvalidMessageException::class);
 
         new Message(new stdClass)->withHeader(ShadowingHeader::Correlation, 'spoofed');
@@ -138,8 +147,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function with_header_rejects_a_mistyped_framework_header_value(): void
     {
-        // an int correlation id would read back as a silent null, stamp skipped and saga starved;
-        // the write door fails loud instead, sharing the boundary's own type table.
+        // an int correlation id would read back as a silent null, the stamp skipped and the saga stalled;
+        // the write door fails instead, sharing the boundary's own type table
         $this->expectException(InvalidMessageException::class);
 
         new Message(new stdClass)->withHeader(Header::CorrelationId, 42);
@@ -189,7 +198,7 @@ final class MessageTest extends TestCase
     #[Test]
     public function with_header_overwrites_an_existing_value(): void
     {
-        // the with* family is SET semantics where the arg wins, the counterpart of the enrichers'
+        // the with* family sets, so the argument wins: the counterpart of the enrichers'
         // fill-missing-only contract
         $message = new Message(new stdClass)
             ->withHeader(Header::MessageId, 'id-1')
@@ -267,9 +276,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function aggregate_version_throws_when_present_but_not_an_int(): void
     {
-        // a corrupt envelope, for example a hand-edited jsonb row, must surface, not mask as "absent";
-        // this value feeds optimistic-concurrency math. Built through fromStored, the trusted hydration
-        // path and the only door such a value can enter by: both write gates reject the mistype.
+        // a corrupt envelope, such as a hand-edited jsonb row, must surface rather than read as absent, since
+        // it feeds optimistic concurrency; built through fromStored(), as both write gates refuse the mistype
         $message = Message::fromStored(new stdClass, [Header::AggregateVersion->value => 'three']);
 
         $this->expectException(InvalidMessageException::class);
@@ -294,7 +302,7 @@ final class MessageTest extends TestCase
     public function the_constructor_rejects_an_unknown_reserved_key_like_with_header_does(): void
     {
         // the `__` namespace promise does not depend on which write door was chosen: a key
-        // withHeader refuses, the constructor refuses too, leaving no silent round-trip of a squatted key
+        // withHeader refuses, the constructor refuses too, leaving no silent round-trip of a reserved key
         $this->expectException(InvalidMessageException::class);
 
         new Message(new stdClass, ['__future_framework_key' => 'v']);
@@ -324,8 +332,8 @@ final class MessageTest extends TestCase
     #[Group('adversarial')]
     public function a_unicode_blank_operational_identifier_is_refused(): void
     {
-        // blankness spans Unicode: an NBSP-only id renders empty everywhere it is read and would
-        // poison deduplication as a visually blank key, so the write door refuses it
+        // blankness spans Unicode: an id of no-break spaces renders empty everywhere and would defeat
+        // deduplication as a visually blank key, so the write door refuses it
         $this->expectException(InvalidMessageException::class);
 
         new Message(new stdClass)->withHeader(Header::MessageId, "\u{00A0}");
@@ -335,7 +343,7 @@ final class MessageTest extends TestCase
     public function from_stored_tolerates_an_unknown_reserved_key(): void
     {
         // the named hydration gate: a durable row written by a past or future framework version may
-        // carry a reserved key this version does not know; it must stay readable, never brick
+        // carry a reserved key this version does not know, and it must stay readable
         $message = Message::fromStored(new stdClass, ['__future_framework_key' => 'v']);
 
         $this->assertSame('v', $message->header('__future_framework_key'));
@@ -344,9 +352,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function a_present_but_mistyped_string_header_throws_instead_of_reading_as_absent(): void
     {
-        // the mirror of the aggregateVersion() refusal, decided rather than left open: a corrupt
-        // correlation must never answer the SAME null an absent one does, since a silently lost
-        // correlation is a saga that never advances
+        // the mirror of the aggregateVersion() refusal: a corrupt correlation must never answer the same
+        // null an absent one does, since a silently lost correlation is a saga that never advances
         $message = Message::fromStored(new stdClass, ['__correlation_id' => 42]);
 
         $this->expectException(InvalidMessageException::class);
@@ -357,9 +364,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function every_header_case_has_a_message_accessor_and_this_map_is_exhaustive(): void
     {
-        // adding a Header case ripples through ten wiring sites and nothing structural catches a
-        // partial one; THIS map is the structural half: a new case must be added here with its
-        // accessor and a readable sample, or the build reds
+        // a new Header case touches ten wiring sites, and only this map catches a partial addition: the
+        // case must be added here with its accessor and a readable sample, or the build fails
         $samples = [
             Header::MessageId->value => ['msg-1', static fn (Message $m): ?string => $m->messageId()],
             Header::MessageType->value => [stdClass::class, static fn (Message $m): ?string => $m->messageType()],
@@ -374,6 +380,7 @@ final class MessageTest extends TestCase
             Header::AggregateVersion->value => [3, static fn (Message $m): ?int => $m->aggregateVersion()],
             Header::TenantId->value => ['t-1', static fn (Message $m): ?string => $m->tenantId()],
             Header::StreamName->value => ['order-1', static fn (Message $m): ?string => $m->streamName()],
+            Header::SagaCommandId->value => ['msg-1', static fn (Message $m): ?string => $m->sagaCommandId()],
         ];
 
         $cases = array_map(static fn (Header $h): string => $h->value, Header::cases());
@@ -390,9 +397,10 @@ final class MessageTest extends TestCase
     #[Test]
     public function an_integer_custom_key_is_validated_not_died_on(): void
     {
-        // PHP normalizes '7' to int 7 at array write; under strict types an uncast key would die
+        // PHP normalizes '7' to int 7 at array write; under strict types an uncast key would fail
         // on str_starts_with() with a TypeError the constructor's clause never declared
-        $message = new Message(new stdClass, ['7' => 'v']); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        $message = new Message(new stdClass, ['7' => 'v']);
 
         $this->assertSame('v', $message->header('7'));
     }
@@ -400,9 +408,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function both_write_doors_refuse_a_blank_or_padded_custom_key(): void
     {
-        // "x", " x" and "x " are three different headers, a silent near-collision the module's own
-        // bag carriers refuse one layer up; the envelope, the thing that persists, must not be the
-        // most permissive link in its own chain
+        // "x", " x" and "x " are three different headers, a silent near-collision the bag carriers refuse
+        // one layer up; the envelope, which persists, must not be more permissive than they are
         foreach (['', '   ', ' x', 'x '] as $key) {
             try {
                 new Message(new stdClass, [$key => 'v']);
@@ -423,9 +430,8 @@ final class MessageTest extends TestCase
     #[Test]
     public function the_constructor_door_holds_the_json_tree_net_for_custom_values(): void
     {
-        // "two doors, one promise" as a fact: a nested object entering by the constructor refuses
-        // exactly as it does through withHeader(), never a silent flatten on the wire far from its
-        // writer
+        // a nested object entering by the constructor is refused exactly as through withHeader(),
+        // rather than silently flattened on the wire, far from its writer
         $this->expectException(InvalidMessageException::class);
 
         new Message(new stdClass, ['custom' => ['nested' => new stdClass]]);
@@ -435,10 +441,12 @@ final class MessageTest extends TestCase
     public function the_constructor_door_refuses_a_top_level_object_value(): void
     {
         // withHeader()'s parameter type excludes objects; the constructor bag is mixed at runtime,
-        // so the top level needs the same refusal the nested levels always had
+        // so the top level needs the refusal the nested levels have
         $this->expectException(InvalidMessageException::class);
 
-        // @phpstan-ignore argument.type (the declared shape excludes objects; the runtime guard exists for the mixed-at-runtime caller this simulates)
+        // the declared shape excludes objects; the runtime guard exists for the mixed-at-runtime caller this
+        // simulates
+        // @phpstan-ignore argument.type
         new Message(new stdClass, ['custom' => new stdClass]);
     }
 }

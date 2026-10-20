@@ -37,15 +37,14 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('alias must be a non-empty string');
 
-        new EventType(''); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        new EventType(''); // @phpstan-ignore argument.type (a hostile value: the guard under test)
     }
 
     #[Test]
     public function rejects_a_unicode_separator_alias(): void
     {
-        // the alias is stored verbatim in the type column, the most durable value a blank can
-        // reach; a NBSP-only alias renders exactly as blank everywhere, and /u alone does not fold
-        // Unicode separators into \s
+        // the alias is stored verbatim in the type column, the most durable place a blank can reach; an
+        // alias of no-break spaces renders blank everywhere, and /u alone does not fold separators into \s
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('alias must be a non-empty string');
 
@@ -68,7 +67,8 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('version must be >= 1, got 0');
 
-        new EventType('order.placed', 0); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        new EventType('order.placed', 0);
     }
 
     #[Test]
@@ -77,7 +77,8 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('replaces list must hold non-empty former aliases');
 
-        new EventType('order.placed', 1, ['']); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        new EventType('order.placed', 1, ['']);
     }
 
     #[Test]
@@ -95,7 +96,7 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('alias must be a non-empty string');
 
-        new EventType('   '); // whitespace IS a non-empty-string; the phpdoc shape cannot catch this one
+        new EventType('   '); // whitespace is a non-empty-string; the PHPDoc shape cannot catch this one
     }
 
     #[Test]
@@ -106,7 +107,8 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('must hold strings only, got int');
 
-        new EventType('order.placed', 1, [123]); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        new EventType('order.placed', 1, [123]);
     }
 
     #[Test]
@@ -116,7 +118,8 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('replaces list must hold non-empty former aliases');
 
-        new EventType('order.placed', 1, ['   ']); // whitespace IS a non-empty-string; only the runtime guard catches it
+        // whitespace is a non-empty-string; only the runtime guard catches it
+        new EventType('order.placed', 1, ['   ']);
     }
 
     #[Test]
@@ -136,6 +139,7 @@ final class EventTypeTest extends TestCase
         $this->expectException(InvalidEventType::class);
         $this->expectExceptionMessageIsOrContains('must be a genuine list');
 
-        new EventType('order.placed', 1, [2 => 'order.created']); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        new EventType('order.placed', 1, [2 => 'order.created']);
     }
 }

@@ -41,6 +41,16 @@ final class ContextValuesTest extends TestCase
     }
 
     #[Test]
+    public function a_padded_reserved_bag_key_is_refused_as_padded(): void
+    {
+        // the blank check runs before the prefix check, so the refusal names the near-collision
+        $this->expectException(InvalidMessageException::class);
+        $this->expectExceptionMessageIsOrContains('carries surrounding whitespace');
+
+        new ContextValues(bag: ['__origin ' => 'http']);
+    }
+
+    #[Test]
     public function a_blank_bag_key_is_refused(): void
     {
         $this->expectException(InvalidMessageException::class);
@@ -51,10 +61,8 @@ final class ContextValuesTest extends TestCase
     #[Test]
     public function a_padded_bag_key_is_refused_with_the_near_collision_named(): void
     {
-        // the refusal Message's own door applies, one layer down: a padded key accepted at this
-        // boundary only blows up mid-enrichment, far from its producer. The message assertion is
-        // load-bearing too: it names the KEY's near-collision, never a framework header's blank
-        // value, which is another refusal's story
+        // Message's own refusal, one layer down: a padded key accepted here fails mid-enrichment, far
+        // from its producer; the message must name the key's near-collision, not a blank header value
         try {
             new ContextValues(bag: ['x-origin ' => 'http']);
             self::fail('a padded key must be refused at the boundary');
@@ -66,9 +74,10 @@ final class ContextValuesTest extends TestCase
     #[Test]
     public function an_integer_bag_key_is_validated_not_died_on(): void
     {
-        // PHP normalizes '7' to int 7 at array write; under strict types an uncast key would die
+        // PHP normalizes '7' to int 7 at array write; under strict types an uncast key would fail
         // on trim() with a TypeError the contract never declared
-        $values = new ContextValues(bag: ['7' => 'http']); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        $values = new ContextValues(bag: ['7' => 'http']);
 
         $this->assertSame(['7' => 'http'], $values->bag());
     }

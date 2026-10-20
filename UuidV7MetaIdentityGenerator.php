@@ -8,9 +8,6 @@ use Storm\Contracts\Message\MetaIdentityGenerator;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * The UUID v7 implementation of MetaIdentityGenerator.
- */
 #[AsAlias(MetaIdentityGenerator::class)]
 final class UuidV7MetaIdentityGenerator implements MetaIdentityGenerator
 {

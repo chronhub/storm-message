@@ -19,12 +19,15 @@ plain `Message`.
 composer require chronhub/storm-message
 ```
 
-> **Two audiences, one package.** This is the envelope INFRASTRUCTURE (Message, Header, enrichers,
-> ambient holders) — and also the domain-authoring KIT an application's domain layer requires
-> (`HasConstructablePayload`, `#[EventType]`). The kit itself uses none of the package's
-> dependencies, but pulls them into a pure domain's vendor tree. A clean cut (a dependency-free
-> `storm-message-kit`, or relaxing Contracts' interfaces-only stance) is a subtree-split-era
-> decision — deliberately not made before the packages are published separately.
+> **Two audiences, one package.** This is the envelope infrastructure (`Message`, `Header`,
+> enrichers, ambient holders) and also the domain-authoring kit an application's domain layer
+> requires (`HasConstructablePayload`, `#[EventType]`, `#[Personal]`). The kit itself imports only
+> `storm-contracts` and `storm-text`, yet a domain that requires the package also installs
+> `storm-clock`, `symfony/uid` for the default message ids, `symfony/service-contracts` for the
+> resettable ambient holders, and `symfony/dependency-injection` for the wiring attributes on the
+> package's services and its `config/services.php`. That closure reaches neither `doctrine/dbal`
+> nor `symfony/console`, which `PackageManifestsTest` holds for every package a domain model is
+> written against.
 
 ## The domain-authoring kit
 

@@ -6,10 +6,10 @@ namespace Storm\Message\Exception;
 
 use RuntimeException;
 use Storm\Message\Header;
-use Storm\Support\Text\Str;
+use Storm\Text\Str;
 
 /**
- * Thrown when a Message is constructed or mutated with an invalid payload or header; a malformed
+ * Thrown when a `Message` is constructed or mutated with an invalid payload or header; a malformed
  * wire or header condition surfaced at the boundary, so a `RuntimeException`.
  */
 final class InvalidMessageException extends RuntimeException

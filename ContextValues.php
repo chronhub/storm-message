@@ -8,10 +8,10 @@ use Storm\Contracts\Message\MessageContext;
 use Storm\Message\Exception\InvalidMessageException;
 
 /**
- * The immutable value-object form of MessageContext: a frozen set of identifiers.
+ * The immutable value-object form of `MessageContext`, a frozen set of identifiers.
  *
  * The Story bridge middleware builds one from the incoming Messenger stamps and binds it into the
- * ambient CurrentMessageContext. Being a plain value, it is trivial to construct in tests.
+ * ambient `CurrentMessageContext`. As a plain value, it is easy to build in tests.
  *
  * @see CurrentMessageContext
  */
@@ -20,9 +20,9 @@ final readonly class ContextValues implements MessageContext
     /**
      * @param  array<string, bool|float|int|string>  $bag  declared transverse metadata; keys are
      *                                                     application header keys, `__` refused.
-     *                                                     Value shape is the phpdoc contract here;
-     *                                                     the runtime net is Message::withHeader,
-     *                                                     which refuses an unjsonable value
+     *                                                     The value shape is a PHPDoc contract here,
+     *                                                     checked at runtime by `Message::withHeader()`,
+     *                                                     which refuses a value JSON cannot encode
      *
      * @throws InvalidMessageException when a bag key is blank, padded or `__`-reserved
      */
@@ -38,14 +38,8 @@ final readonly class ContextValues implements MessageContext
             $key = (string) $key; // a runtime bag may carry int keys despite the phpdoc shape
 
             // the same refusal Message's own gate applies, one layer down: a key this boundary
-            // accepts must never blow up mid-enrichment when withHeader() replays it
-            if ($key === '' || $key !== trim($key)) {
-                throw InvalidMessageException::blankHeaderKey($key);
-            }
-
-            if (str_starts_with($key, '__')) {
-                throw InvalidMessageException::reservedHeaderKey($key);
-            }
+            // accepts must never fail mid-enrichment when withHeader() replays it
+            Header::assertCustomKey($key);
         }
     }
 

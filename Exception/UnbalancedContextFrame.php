@@ -7,10 +7,11 @@ namespace Storm\Message\Exception;
 use LogicException;
 
 /**
- * A holder's bind()/clear() protocol was violated: clear() was called with no bound frame. Always a
- * wiring bug, a double-clear or a clear without its bind, so a `LogicException`, surfaced at the
- * faulty call instead of silently popping the parent's frame, where the corruption would show up
- * far from its cause as mis-attributed ambient context.
+ * A holder's `clear()` was called with no bound frame, breaking the `bind()` and `clear()` protocol.
+ *
+ * It is always a wiring bug, a double clear or a clear without its bind, so a `LogicException`. It
+ * surfaces at the faulty call instead of silently popping the parent's frame, where the corruption
+ * would show up far from its cause as misattributed ambient context.
  */
 final class UnbalancedContextFrame extends LogicException
 {

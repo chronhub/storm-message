@@ -6,6 +6,9 @@ namespace Storm\Message;
 
 /**
  * Bounds the dedicated W3C carrier before SDK validation; generic bag propagation does not own it.
+ *
+ * `read()` keeps `traceparent` and `tracestate` only as non-empty strings of at most 512 bytes, and
+ * drops any other value.
  */
 final class TraceHeaders
 {

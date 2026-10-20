@@ -17,8 +17,8 @@ final class CurrentStoredHeaderTest extends TestCase
     #[Test]
     public function a_null_frame_shadows_the_parent_stored_header(): void
     {
-        // the truth-keeper for nested unstamped dispatches: the accessors answer for the message
-        // being handled NOW, null, never for the enclosing one.
+        // nested unstamped dispatches: the accessors answer null for the message handled now, never
+        // for the enclosing one
         $current = new CurrentStoredHeader;
         $current->bind(new Message(new stdClass, [
             Header::AggregateType->value => 'App\\Account',
@@ -28,9 +28,8 @@ final class CurrentStoredHeaderTest extends TestCase
         ]));
         $current->bind(null);
 
-        // every accessor, all four, not just the first: they each answer for the frame on top, and
-        // one that reached past a null frame would hand a nested dispatch the enclosing message's
-        // identity, or its instant
+        // all four accessors answer for the frame on top; one reaching past a null frame would hand a
+        // nested dispatch the enclosing message's identity, or its instant
         $this->assertNull($current->aggregateType());
         $this->assertNull($current->aggregateIdType());
         $this->assertNull($current->aggregateVersion());
@@ -47,8 +46,8 @@ final class CurrentStoredHeaderTest extends TestCase
     #[Test]
     public function reset_wipes_leaked_frames(): void
     {
-        // the kernel.reset safety net: an unbalanced app-side bind must not outlive its
-        // handling window in a long-running worker.
+        // kernel.reset: an unbalanced application bind must not outlive its handling window in a
+        // long-running worker
         $current = new CurrentStoredHeader;
         $current->bind(new Message(new stdClass, [Header::AggregateType->value => 'App\\Account']));
         $current->bind(new Message(new stdClass, [Header::AggregateType->value => 'App\\Bulletin']));
@@ -61,8 +60,8 @@ final class CurrentStoredHeaderTest extends TestCase
     #[Test]
     public function clear_without_a_bound_frame_fails_loud(): void
     {
-        // a double-clear would otherwise silently pop the PARENT's frame; the wiring bug must
-        // explode at its source, not as mis-attributed context far away.
+        // a double clear would otherwise silently pop the parent's frame; the wiring bug must fail at
+        // its source, not as misattributed context far away
         $this->expectException(UnbalancedContextFrame::class);
 
         new CurrentStoredHeader()->clear();

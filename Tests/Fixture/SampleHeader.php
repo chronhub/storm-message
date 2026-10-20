@@ -7,7 +7,7 @@ namespace Storm\Message\Tests\Fixture;
 use Storm\Contracts\Message\HeaderKey;
 
 /**
- * Application-defined header key, used to exercise HeaderKey extensibility.
+ * Application-defined header key, which exercises `HeaderKey` extensibility.
  */
 enum SampleHeader: string implements HeaderKey
 {

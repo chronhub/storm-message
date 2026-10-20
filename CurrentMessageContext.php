@@ -11,21 +11,28 @@ use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Contracts\Service\ResetInterface;
 
 /**
- * The ambient, message-scoped holder of MessageContext, the single shared service the writing path
- * reads without threading identifiers through every handler.
+ * The ambient, message-scoped holder of `MessageContext`.
  *
- * It is bound at the dispatch boundary: the Story bridge middleware reads the Messenger stamps,
- * builds a ContextValues snapshot, calls bind() around the handler, then clear() afterward.
- * bind()/clear() nest as a stack; a handler that dispatches a nested message pushes its own frame
- * and pops back to the parent's on return, so a nested dispatch never clobbers the enclosing
- * message's context and the next top-level message starts clean. This holder is the only stateful,
- * mutable piece; it stays framework-neutral, never importing the transport, and simply delegates to
- * the currently bound snapshot.
+ * It is the single shared service the writing path reads, so no handler threads identifiers
+ * through. The Story bridge middleware binds it at the dispatch boundary:
+ *
+ * - It reads the Messenger stamps and builds a `ContextValues` snapshot
+ * - It calls `bind()` around the handler, then `clear()`
+ *
+ * `bind()` and `clear()` nest as a stack: a handler that dispatches a nested message pushes its own
+ * frame and pops back to the parent's on return, so a nested dispatch never clobbers the enclosing
+ * message's context and the next top-level message starts clean.
+ *
+ * This holder is the only stateful, mutable piece. It stays framework-neutral, never importing the
+ * transport, and delegates to the currently bound snapshot.
  */
 #[AsAlias(MessageContext::class)]
 final class CurrentMessageContext implements MessageContext, ResetInterface
 {
-    /** @var list<MessageContext> the nesting stack; a nested dispatch pushes its frame, then pops back to the parent's */
+    /**
+     * @var list<MessageContext> the nesting stack; a nested dispatch pushes its frame, then pops back to the
+     *                           parent's
+     */
     private array $stack = [];
 
     private MessageContext $current;
@@ -36,8 +43,7 @@ final class CurrentMessageContext implements MessageContext, ResetInterface
     }
 
     /**
-     * Bind the context for the message about to be handled, pushing a nesting frame so a nested
-     * dispatch, a handler that dispatches another message, does not clobber its parent's context.
+     * Bind the context for the message about to be handled, pushing a nesting frame.
      */
     public function bind(MessageContext $context): void
     {
@@ -45,9 +51,10 @@ final class CurrentMessageContext implements MessageContext, ResetInterface
     }
 
     /**
-     * Pop the current frame once the message has been handled, restoring the parent's context, or an
-     * empty one at the top level, so the next message starts clean. Paired with bind() by the Story
-     * bridge middleware, which binds then clears in `finally`, it stays balanced even on an exception.
+     * Pop the current frame, restoring the parent's context or an empty one at the top level.
+     *
+     * The Story bridge middleware pairs it with `bind()` in a `finally`, so it stays balanced even on
+     * an exception.
      *
      * @throws UnbalancedContextFrame when called with no bound frame; a wiring bug, surfaced here
      *                                rather than silently popping the parent's frame
@@ -65,10 +72,10 @@ final class CurrentMessageContext implements MessageContext, ResetInterface
     /**
      * {@inheritDoc}
      *
-     * The between-messages safety net, kernel.reset via autoconfiguration run by Messenger's worker
-     * between messages: wipes any frame an unbalanced app-side bind() leaked, bounding a leak to one
-     * handling window, never the worker's remaining lifetime. The framework's own binders are
-     * finally-paired and never need it.
+     * Messenger's worker runs it between messages through `kernel.reset` autoconfiguration. It wipes
+     * any frame an unbalanced application `bind()` leaked, so a leak lasts one handling window, never
+     * the worker's remaining lifetime. The framework's own binders pair `bind()` with `clear()` in a
+     * `finally` and never need it.
      */
     #[Override]
     public function reset(): void

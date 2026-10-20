@@ -54,9 +54,8 @@ final class EnricherRegistryTest extends TestCase
     #[Test]
     public function keeps_every_enricher_of_a_traversable_whose_keys_collide(): void
     {
-        // The chain applies each enricher in turn, so it must not inherit the iterable's key space.
-        // A Traversable is free to yield twice under one key, and collapsing on that key drops an
-        // enricher silently: the message would leave the chain missing a stamp, with nothing failing.
+        // the chain must not inherit the iterable's keys: a Traversable may yield twice under one key, and
+        // collapsing on it would silently drop an enricher, leaving the message missing a stamp
         $registry = new EnricherRegistry((function (): Generator {
             yield 'enricher' => new MessageIdEnricher($this->identityReturning('evt'));
             yield 'enricher' => new MessageTypeEnricher;

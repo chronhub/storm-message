@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace Storm\Message\Tests;
 
+use FilesystemIterator;
+use PhpToken;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use SplFileInfo;
 use Storm\Message\Exception\InvalidMessageException;
 use Storm\Message\Header;
 
@@ -29,7 +34,8 @@ final class HeaderTest extends TestCase
     #[Test]
     public function assert_well_typed_rejects_a_non_int_aggregate_version(): void
     {
-        // a string version would otherwise throw deep at read, where the store reads it for OCC; caught here instead.
+        // a string version would otherwise throw deep at read, where the store reads it for OCC; caught here
+        // instead.
         $this->expectException(InvalidMessageException::class);
         $this->expectExceptionMessageIsOrContains('expected int, got string');
 
@@ -69,9 +75,8 @@ final class HeaderTest extends TestCase
     #[Test]
     public function assert_value_rejects_a_unicode_separator_identifier(): void
     {
-        // the Unicode arm, pinned where the unit lives: `\p{Z}` is load-bearing in the blank
-        // pattern, since `/u` alone does not extend `\s` past ASCII, and a NBSP-only identifier
-        // renders exactly as blank in every log and column it reaches
+        // the Unicode arm, pinned at its unit: `\p{Z}` matters in the blank pattern, since `/u` alone does
+        // not extend `\s` past ASCII, and an identifier of no-break spaces renders blank everywhere
         $this->expectException(InvalidMessageException::class);
         $this->expectExceptionMessageIsOrContains('is present but blank');
 
@@ -103,11 +108,11 @@ final class HeaderTest extends TestCase
     #[Test]
     public function assert_write_bag_survives_a_bag_whose_keys_are_ints(): void
     {
-        // PHP casts a numeric-string array key to int on the way in, so a bag round-tripped through
-        // json_decode or built from a list arrives with int keys whatever the declared shape says.
-        // The prefix check reads them as strings; handed an int under strict types it would not
-        // refuse the bag, it would die on the comparison.
-        Header::assertWriteBag([0 => 'first', '7' => 'seventh']); // @phpstan-ignore argument.type (the runtime shape the cast defends, which the declared one cannot express)
+        // PHP casts a numeric-string key to int, so a bag from json_decode or a list arrives with int keys;
+        // the prefix check reads them as strings, where an int under strict types would fail the comparison
+        // the runtime shape the cast defends, which the declared one cannot express
+        // @phpstan-ignore argument.type
+        Header::assertWriteBag([0 => 'first', '7' => 'seventh']);
 
         $this->expectNotToPerformAssertions();
     }
@@ -115,11 +120,47 @@ final class HeaderTest extends TestCase
     #[Test]
     public function assert_well_typed_tolerates_an_unknown_reserved_key(): void
     {
-        // deliberately NOT the write-bag rule: this check also guards durable hydration, and a row
-        // written by a past or future framework version may carry a reserved key this version does
-        // not know; rejecting it would brick the row
+        // not the write-bag rule: this check also guards durable hydration, where a row from a past or future
+        // framework version may carry an unknown reserved key, and rejecting it would make it unreadable
         Header::assertWellTyped(['__future_framework_key' => 'v']);
 
         $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
+    public function assert_custom_key_refuses_a_padded_reserved_key_as_padded(): void
+    {
+        // the blank check runs before the prefix check, so the refusal names the near-collision
+        $this->expectException(InvalidMessageException::class);
+        $this->expectExceptionMessageIsOrContains('carries surrounding whitespace');
+
+        Header::assertCustomKey('__x ');
+    }
+
+    #[Test]
+    public function the_reserved_prefix_is_spelled_by_header_alone(): void
+    {
+        // a second literal of the prefix could drift from `Header::PREFIX` and leave one gate guarding
+        // another namespace than the rest; every check reads the constant instead
+        $module = dirname(__DIR__);
+        $files = $where = [];
+        /** @var SplFileInfo $file */
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($module, FilesystemIterator::SKIP_DOTS)) as $file) {
+            $path = $file->getPathname();
+            if ($file->getExtension() !== 'php' || str_contains($path, '/Tests/')) {
+                continue;
+            }
+
+            foreach (PhpToken::tokenize((string) file_get_contents($path)) as $token) {
+                if ($token->is(T_CONSTANT_ENCAPSED_STRING) && trim($token->text, '\'"') === Header::PREFIX) {
+                    $files[] = substr($path, strlen($module) + 1);
+                    $where[] = end($files).':'.$token->line;
+                }
+            }
+        }
+        sort($files);
+
+        // the constant's own declaration is the one literal, which also proves the scan read the module
+        $this->assertSame(['Header.php'], $files, 'Read Header::PREFIX instead of the literal at '.implode(', ', $where));
     }
 }

@@ -7,34 +7,37 @@ namespace Storm\Message;
 use Attribute;
 use Storm\Contracts\Chronicler\EventTypeMapper;
 use Storm\Message\Exception\InvalidEventType;
-use Storm\Support\Text\Str;
+use Storm\Text\Str;
 
 /**
- * Declares the stable stored type of a domain event: its alias, decoupled from the PHP FQCN so it
- * is rename-proof and portable on the wire.
+ * Declares the stable stored type of a domain event, its alias.
  *
- * The alias is dev-owned and stored verbatim, with no auto-derivation from the class, which would
- * re-couple it to the FQCN and defeat the purpose. The replaces list holds former aliases so old
- * rows still resolve after a rare, deliberate alias rename. The EventTypeMapper reads this
- * attribute: toType from the class through reflection, toClass from the scanned reverse map.
+ * The alias is decoupled from the PHP FQCN, so it survives renames and stays portable on the wire.
+ * It is owned by the developer and stored verbatim, never derived from the class, which would couple
+ * it to the FQCN again. `replaces` holds former aliases, so old rows still resolve after a rare
+ * alias rename. The `EventTypeMapper` reads this attribute: `toType()` from the class through
+ * reflection, `toClass()` from the scanned reverse map.
  *
- * Optional: an event without it falls back to its FQCN for gradual adoption, but a wire-bound event
- * should declare one, since an FQCN is not portable cross-language.
+ * The attribute is optional: an event without it falls back to its FQCN for gradual adoption, but a
+ * wire-bound event should declare one, since an FQCN is not portable across languages.
  *
- * The shape invariants are enforced here, in the constructor: the WHOLE declared shape, not only
- * what PHP types check. The alias and every replaces entry are non-blank strings, and replaces is a
- * genuine list without duplicates or the alias itself. A degenerate declaration explodes when the
- * mapper instantiates the attributes, at the first boot of a consuming service and before any
- * stored row, not silently at some later read. PHP only enforces the outer `array` of `$replaces`;
- * the phpdoc shape is a claim this constructor must make true.
+ * The constructor enforces the whole declared shape, beyond what PHP types check:
+ *
+ * - The alias and every `replaces` entry are non-blank strings
+ * - `replaces` is a real list, without duplicates or the alias itself
+ *
+ * A degenerate declaration fails when the mapper instantiates the attributes, at the first boot of a
+ * consuming service and before any stored row, instead of silently at a later read. PHP enforces
+ * only the outer `array` of `$replaces`; the PHPDoc shape is a claim this constructor must make
+ * true.
  *
  * @see \Storm\Contracts\Chronicler\EventTypeMapper
  */
 #[Attribute(Attribute::TARGET_CLASS)]
-final readonly class EventType
+final readonly class EventType implements AliasDeclaration
 {
     /**
-     * @param  non-empty-string  $alias  the canonical stored type, e.g. order.placed
+     * @param  non-empty-string  $alias  the canonical stored type, such as `order.placed`
      * @param  positive-int  $version  the current schema version of this event, which drives upcasting
      * @param  list<non-empty-string>  $replaces  former aliases that still resolve to this class
      *

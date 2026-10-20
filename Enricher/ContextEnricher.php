@@ -14,23 +14,22 @@ use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 /**
  * Propagates the ambient cross-cutting context onto the message.
  *
- * Copies correlation, causation, actor, and tenant identifiers, plus the declared transverse bag,
- * from the current MessageContext into the corresponding headers. This is how events recorded by
- * an aggregate inherit the context of the command that produced them, without the domain or the
- * handler ever touching the transport.
+ * It copies the correlation, causation, actor and tenant identifiers, plus the declared transverse
+ * bag, from the current `MessageContext` into the matching headers. Events recorded by an aggregate
+ * thus inherit the context of the command that produced them, without the domain or the handler
+ * touching the transport.
  *
- * Each header is only set when the context has a value and the message does not already carry
- * it, so an explicitly stamped header always wins, and enriching twice is safe.
+ * A header is set only when the context has a value for it.
  *
- * The actor is an ATOMIC PAIR, never two independent headers:
+ * The actor's two headers form an atomic pair:
  *
- * - A message carrying both halves keeps them together;
+ * - A message carrying both halves keeps them together
  *
- * - A message carrying neither inherits both ambient halves together;
+ * - A message carrying neither inherits both ambient halves together
  *
- * - A message carrying exactly one half is refused loud, since completing it from the ambient
- *   context would forge a composite identity whose two halves come from different provenances, an
- *   actor that never existed.
+ * - A message carrying exactly one half is refused: completing it from the ambient context would
+ *   forge a composite identity whose halves come from different provenances, an actor that never
+ *   existed
  *
  * The ambient side is a pair by construction: it is read from the `Actor` value object, which
  * refuses blanks, so a half-empty ambient context copies nothing.
@@ -42,14 +41,6 @@ final readonly class ContextEnricher implements MessageEnricher
         private MessageContext $context,
     ) {}
 
-    /**
-     * {@inheritDoc}
-     *
-     * @throws InvalidMessageException when the message carries exactly one half of the actor
-     *                                 identity; an atomic pair is both or neither, and completing
-     *                                 a lone half from the ambient context would forge a
-     *                                 two-provenance identity
-     */
     public function enrich(Message $message): Message
     {
         /** @var list<array{Header, string|null}> $singles */
@@ -65,9 +56,8 @@ final readonly class ContextEnricher implements MessageEnricher
             }
         }
 
-        // The declared transverse bag rides along under the same idempotence: an existing header
-        // wins, so a replayed or republished message keeps its original truth. Keys were validated
-        // at ContextValues construction; the framework never reads the values.
+        // the bag follows the same rule, an existing header wins, so a replayed or republished message
+        // keeps its values; ContextValues validated the keys, and the framework never reads the values
         foreach ($this->context->bag() as $key => $value) {
             if (! $message->hasHeader($key)) {
                 $message = $message->withHeader($key, $value);

@@ -7,10 +7,12 @@ namespace Storm\Message\Exception;
 use LogicException;
 
 /**
- * An `#[EventType]` attribute was declared with an invalid shape; a declaration bug, so a
- * `LogicException`. It is thrown by the attribute's own constructor, which the mapper instantiates
- * while scanning, so it explodes at container build, the loudest possible place, instead of writing
- * a degenerate alias to stored rows or feeding a non-positive version into the upcaster range math.
+ * An `#[EventType]` attribute declared with an invalid shape.
+ *
+ * A declaration bug, so a `LogicException`. The attribute's own constructor throws it, and the
+ * mapper instantiates that constructor while scanning, so it fails at container build, the earliest
+ * point, instead of writing a degenerate alias to stored rows or feeding a non-positive version into
+ * the upcaster range math.
  */
 final class InvalidEventType extends LogicException
 {

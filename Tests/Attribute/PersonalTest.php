@@ -30,7 +30,7 @@ final class PersonalTest extends TestCase
         $this->expectException(InvalidPersonalDeclaration::class);
         $this->expectExceptionMessageIsOrContains('keys must be a non-empty list');
 
-        // @phpstan-ignore argument.type (the guard defends a declaration the analyser cannot see through)
+        // @phpstan-ignore argument.type (the guard defends a declaration the analyzer cannot see through)
         new Personal('customer_id', [3 => 'full_name'], ['full_name' => null]);
     }
 
@@ -46,8 +46,8 @@ final class PersonalTest extends TestCase
     #[Test]
     public function rejects_a_unicode_separator_subject(): void
     {
-        // a NBSP-only subject renders exactly as blank in every log and column, and /u alone does
-        // not fold Unicode separators into \s; the subject addresses durable ciphered payloads
+        // a subject of no-break spaces renders blank in every log and column, and /u alone does not
+        // fold Unicode separators into \s; the subject addresses durable ciphered payloads
         $this->expectException(InvalidPersonalDeclaration::class);
         $this->expectExceptionMessageIsOrContains('subject must be a non-empty payload key');
 
@@ -61,20 +61,21 @@ final class PersonalTest extends TestCase
         $this->expectException(InvalidPersonalDeclaration::class);
         $this->expectExceptionMessageIsOrContains('keys must be a non-empty list');
 
-        new Personal('customer_id', [], []); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        new Personal('customer_id', [], []);
     }
 
     #[Test]
     #[DataProvider('blank_keys')]
     public function rejects_a_blank_key(string $key): void
     {
-        // Whitespace is the half the subject's own guard already covers, and the keys read the same
-        // way: a payload key made of spaces names nothing, and it would reach the cipher as a key
-        // that protects no field while looking declared.
+        // a key made of spaces names no payload field, yet would reach the cipher looking declared while
+        // protecting nothing; the keys read whitespace the same way the subject's own guard does
         $this->expectException(InvalidPersonalDeclaration::class);
         $this->expectExceptionMessageIsOrContains('keys must be non-empty strings');
 
-        new Personal('customer_id', [$key], [$key => null]); // @phpstan-ignore argument.type, argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type, argument.type (a hostile value: the guard under test)
+        new Personal('customer_id', [$key], [$key => null]);
     }
 
     /**
@@ -110,8 +111,8 @@ final class PersonalTest extends TestCase
     #[Test]
     public function rejects_a_declared_key_without_its_fallback(): void
     {
-        // THE build-breaking guard: the fallback is a design value the domain must choose; a
-        // missing one must never default silently
+        // the build-breaking guard: the fallback is a value the domain must choose, and a missing one
+        // must never default silently
         try {
             new Personal('customer_id', ['full_name', 'email'], ['full_name' => '⌫']);
             $this->fail('a declared key without a fallback must refuse');
@@ -137,7 +138,8 @@ final class PersonalTest extends TestCase
         $this->expectException(InvalidPersonalDeclaration::class);
         $this->expectExceptionMessageIsOrContains('must be scalar or null, got array');
 
-        new Personal('customer_id', ['full_name'], ['full_name' => ['nested']]); // @phpstan-ignore argument.type (hostile on purpose: the guard under test)
+        // @phpstan-ignore argument.type (a hostile value: the guard under test)
+        new Personal('customer_id', ['full_name'], ['full_name' => ['nested']]);
     }
 
     #[Test]

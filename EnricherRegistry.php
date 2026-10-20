@@ -9,14 +9,13 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Traversable;
 
 /**
- * Applies a chain of MessageEnricher implementations to a message, in order.
+ * Applies a chain of `MessageEnricher` implementations to a message, in order.
  *
- * The registry is itself a MessageEnricher, following the composite pattern, so callers depend on a
- * single enrichment entry point rather than juggling the individual enrichers. Order matters and is
- * the order given at construction; in the bundle this comes from a priority-sorted tagged iterator,
- * the storm.message_enricher tag.
+ * As a composite, it gives callers a single enrichment entry point instead of the individual
+ * enrichers. Order matters and is the order given at construction; in the bundle it comes from a
+ * priority-sorted tagged iterator, the `storm.message_enricher` tag.
  *
- * Because each enricher is idempotent and only fills missing headers, running the whole chain twice
+ * Each enricher is idempotent and only fills missing headers, so running the whole chain twice
  * yields the same message.
  */
 #[AsAlias(MessageEnricher::class)]

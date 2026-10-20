@@ -7,29 +7,35 @@ namespace Storm\Message\Attribute;
 use Attribute;
 use Storm\Message\EventType;
 use Storm\Message\Exception\InvalidPersonalDeclaration;
-use Storm\Support\Text\Str;
+use Storm\Text\Str;
 
 /**
  * Declares which payload keys of an event carry personal data, and whose they are.
  *
  * This is the marking half of crypto-shredding: those keys are encrypted at rest with a key per
- * subject, and forgetting the subject destroys the key, so the stored history stays intact while
- * its personal fields become unreadable and render their declared fallback instead.
+ * subject, and forgetting the subject destroys the key. The stored history stays intact while its
+ * personal fields become unreadable and render their declared fallback instead.
  *
- * The declaration speaks PAYLOAD keys, never properties: the wire is explicit-only, so what
- * `toPayload()` emits is the only shape that exists at rest, and the ciphering serializer transforms
- * exactly the keys named here. `subject` names the payload key holding the subject's OPAQUE id; it
- * stays in clear since it locates the key, and it must never itself be personal data. Every entry of
- * `keys` must have its `fallback` value: what a reader sees once the key is destroyed is a DESIGN
- * value the domain chooses, never an accidental null.
+ * - The declaration names payload keys, never properties: the wire is explicit-only, so what
+ *   `toPayload()` emits is the only shape at rest, and the ciphering serializer transforms exactly
+ *   the keys named here.
  *
- * The shape invariants are enforced in the constructor, the `EventType` pattern: the compile-time
- * scan instantiates the attribute, so a degenerate declaration explodes at container build, before
- * any row is written with unprotected or unrecoverable fields.
+ * - `subject` names the payload key holding the subject's opaque id. It stays in clear, since it
+ *   locates the key, and it must never itself be personal data.
  *
- * Two design rules follow from the marking and are enforced by doctrine, not code: a personal key is
- * never a SQL query criterion, since an encrypted value is neither indexable nor comparable and
- * needing that is the sign an opaque id is missing; and headers never carry personal data at all.
+ * - Every entry of `keys` must have its `fallback` value: what a reader sees once the key is
+ *   destroyed is a value the domain chooses, never an accidental null.
+ *
+ * The constructor enforces the shape, as `EventType` does: the compile-time scan instantiates the
+ * attribute, so a degenerate declaration fails at container build, before any row is written with
+ * unprotected or unrecoverable fields.
+ *
+ * Two rules follow from the marking and hold by convention rather than in code:
+ *
+ * - A personal key is never an SQL query criterion: an encrypted value is neither indexable nor
+ *   comparable, and needing that is the sign an opaque id is missing
+ *
+ * - Headers never carry personal data
  *
  * @see EventType the sibling class-target attribute and the enforcement pattern
  */
@@ -95,7 +101,8 @@ final readonly class Personal
                 throw InvalidPersonalDeclaration::orphanFallback($this->subject, (string) $key);
             }
 
-            if ($value !== null && ! is_scalar($value)) { // @phpstan-ignore booleanAnd.alwaysFalse, function.alreadyNarrowedType
+            // @phpstan-ignore booleanAnd.alwaysFalse, function.alreadyNarrowedType
+            if ($value !== null && ! is_scalar($value)) {
                 throw InvalidPersonalDeclaration::nonScalarFallback($this->subject, (string) $key, get_debug_type($value));
             }
 

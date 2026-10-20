@@ -13,33 +13,41 @@ use Storm\Message\Exception\InvalidMessageException;
 /**
  * The neutral, canonical envelope around a domain message.
  *
- * A Message pairs a pure domain object with a flat bag of metadata headers; the object is a
- * command, query, or plain-object event, and only events carry the DomainEvent contract. It is the
- * single source of truth for that metadata across the framework: the aggregate repository produces
- * it, the event store persists it, and projectors read it. It deliberately has no knowledge of the
- * Symfony Messenger transport: correlation, causation, and actor travel as Messenger stamps only
- * at the dispatch boundary, where dedicated middleware maps them to and from these headers.
- * Everything else sees a plain Message.
+ * A `Message` pairs a pure domain object, a command, a query or a plain-object event, with a flat
+ * bag of metadata headers; only events carry the `DomainEvent` contract. It is the single source of
+ * truth for that metadata across the framework: the aggregate repository produces it, the event
+ * store persists it, and projectors read it.
  *
- * Headers are keyed by HeaderKey, either the framework's Header enum or an application's own, with
- * a raw string accepted as an escape hatch for ad-hoc keys. Values are JSON-friendly scalars or
- * arrays, so a Message maps cleanly onto the event store's native columns and header jsonb column.
+ * It has no knowledge of the Symfony Messenger transport. Correlation, causation and actor travel
+ * as Messenger stamps only at the dispatch boundary, where dedicated middleware maps them to and
+ * from these headers; everything else sees a plain `Message`.
+ *
+ * Headers are keyed by `HeaderKey`, the framework's `Header` enum or an application's own, with a
+ * raw string accepted for ad-hoc keys. Values are JSON-friendly scalars or arrays, so a `Message`
+ * maps onto the event store's native columns and header jsonb column.
  *
  * The class is immutable: every mutator returns a new instance. Header arrays are copied
- * recursively on entry to detach PHP references without converting scalar types.
+ * recursively on entry, which detaches PHP references without converting scalar types.
  *
- * Two doors in, one promise. The constructor and `withHeader()` are WRITE gates holding the same
- * invariants: framework headers well typed and non-blank, the reserved `__` namespace closed to
- * unknown keys, custom keys non-blank and trimmed, and every CUSTOM value inside the JSON tree, no
- * object, no non-finite float, no sparse int-keyed level. Custom strings and keys must be UTF-8,
- * leaves must be JSON scalars or null, and custom values allow at most 509 nested array levels.
- * This leaves room for the header bag and wire envelope within the default JSON decoding depth.
- * The custom value gate checks encoding constraints at write time. The ONE deliberate asymmetry is
- * provenance: the constructor accepts framework keys spelled as raw strings, the wholesale-bag
- * door the enrichers and codecs ride, where `withHeader()` reserves the `__` namespace to the
- * `Header` enum alone, one key at a time. Hydration from DURABLE data goes through the named
- * `fromStored()` gate, which stays tolerant to unknown reserved keys a past or future framework
- * version may have written.
+ * The constructor and `withHeader()` are two write gates that hold the same invariants, checked at
+ * write time:
+ *
+ * - Framework headers are well typed and non-blank
+ *
+ * - The reserved `__` namespace is closed to unknown keys
+ *
+ * - Custom keys are non-blank and trimmed
+ *
+ * - Custom values stay inside the JSON tree: no object, no non-finite float, no sparse int-keyed
+ *   level. Custom strings and keys must be UTF-8, leaves must be JSON scalars or null, and nesting
+ *   stops at 509 array levels, which leaves room for the header bag and the wire envelope within
+ *   the default JSON decoding depth
+ *
+ * Their one asymmetry is provenance. The constructor accepts framework keys spelled as raw strings,
+ * the wholesale-bag door the enrichers and codecs use, while `withHeader()` reserves the `__`
+ * namespace to the `Header` enum alone, one key at a time. Hydration from durable data goes through
+ * the named `fromStored()` gate, which stays tolerant to unknown reserved keys a past or future
+ * framework version may have written.
  *
  * @see \Storm\Contracts\Message\DomainEvent
  */
@@ -51,19 +59,18 @@ final readonly class Message
     private array $headers;
 
     /**
-     * The strict write gate: the whole bag is validated here, so the reserved-namespace and
-     * well-typed promises no longer depend on which construction door was chosen.
+     * The strict write gate, which validates the whole bag.
      *
-     * ALWAYS strict: the write gate runs on every construction, and a public trusted-bag switch
-     * would be a validation bypass one named argument away, so none exists. The validated-copy and
-     * durable-hydration paths that legitimately skip it ride `clone with` from INSIDE this class;
-     * the readonly private property is rewritable only from this scope, so the trusted plumbing is
-     * unreachable by construction, not by discipline.
+     * The reserved-namespace and well-typed promises then hold whichever door builds the message. The
+     * gate runs on every construction: a public trusted-bag switch would put a validation bypass one
+     * named argument away, so none exists. The validated-copy and durable-hydration paths that skip
+     * it use `clone with` from inside this class; the readonly private property is rewritable only
+     * from this scope, so the trusted path is unreachable by construction rather than by discipline.
      *
      * @param  array<string, scalar|array<mixed>|null>  $headers
      *
      * @throws InvalidMessageException when attempting to wrap another Message, when a framework
-     *                                 header is malformed or blank, when an unknown key squats
+     *                                 header is malformed or blank, when an unknown key takes
      *                                 the reserved `__` namespace, or when a custom value leaves
      *                                 the JSON tree
      */
@@ -77,10 +84,8 @@ final readonly class Message
 
         Header::assertWriteBag($headers);
 
-        // the second door holds the first's promise: a custom key entering here rides the same
-        // nets withHeader() applies, the blank-key refusal and the JSON-tree walk, so "two doors,
-        // one promise" is a fact and not a claim; framework keys were just gated by
-        // assertWriteBag's typed checks
+        // a custom key entering here gets the checks withHeader() applies, the blank-key refusal and
+        // the JSON-tree walk; assertWriteBag() has just checked the framework keys
         foreach ($headers as $key => $value) {
             $key = (string) $key; // a runtime bag may carry int keys despite the phpdoc shape
 
@@ -88,10 +93,7 @@ final readonly class Message
                 continue;
             }
 
-            if ($key === '' || $key !== trim($key)) {
-                throw InvalidMessageException::blankHeaderKey($key);
-            }
-
+            Header::assertCustomKey($key);
             self::assertJsonTree($key, $value);
         }
 
@@ -99,12 +101,14 @@ final readonly class Message
     }
 
     /**
-     * The named hydration gate for DURABLE data: store rows, stored-header stamps. Skips the write
-     * bag validation deliberately, since its callers own it: `deserialize()` asserts the header form
-     * at the codec boundary, and a stored header was validated when written. A row carrying a
-     * reserved key from a past or future framework version must stay readable, not brick the read.
-     * Array copying retains historical keys and shapes, but bounds nesting to the stored header JSON depth.
-     * Never a shortcut for fresh construction: a new envelope goes through the constructor or
+     * The named hydration gate for durable data: store rows and stored-header stamps.
+     *
+     * It skips the write-bag validation, since its callers own it: `deserialize()` asserts the header
+     * form at the codec boundary, and a stored header was validated when written. A row carrying a
+     * reserved key from a past or future framework version must stay readable. Array copying keeps
+     * historical keys and shapes but bounds nesting to the stored header JSON depth.
+     *
+     * It is never a shortcut for fresh construction: a new envelope goes through the constructor or
      * `withHeader()`.
      *
      * @param  array<string, scalar|array<mixed>|null>  $headers
@@ -138,7 +142,7 @@ final readonly class Message
     }
 
     /**
-     * Returns a new Message with the given header set, overwriting any existing.
+     * Returns a new `Message` with the given header set, overwriting any existing one.
      *
      * @param  scalar|array<mixed>|null  $value
      *
@@ -159,21 +163,13 @@ final readonly class Message
         if ($key instanceof Header) {
             $key->assertValue($value);
         } else {
-            if ($name === '' || $name !== trim($name)) {
-                throw InvalidMessageException::blankHeaderKey($name);
-            }
-
-            if (str_starts_with($name, Header::PREFIX)) {
-                throw InvalidMessageException::reservedHeaderKey($name);
-            }
-
+            Header::assertCustomKey($name);
             self::assertJsonTree($name, $value);
         }
 
         $headers = $this->headers;
-        // the value sits one level under the bag; `assertJsonTree()` above already stops it at 509
-        // levels, below the 510 the detach allows, so this depth never reaches that refusal, which
-        // is why the mutation config leaves its equivalent `0` and `2` mutants out
+        // one level under the bag: assertJsonTree() already stops the value at 509 levels, below the
+        // 510 the detach allows, so the mutation config leaves the equivalent `0` and `2` mutants out
         $headers[$name] = is_array($value) ? self::detachHeaders($value, 1) : $value;
 
         // this instance's bag already passed its gate and the delta was just checked; re-validating
@@ -185,6 +181,7 @@ final readonly class Message
      * Validates custom values before they reach a JSON codec.
      *
      * Refuses:
+     *
      * - Objects and resources
      * - Non-finite floats
      * - Invalid UTF-8 in strings or keys
@@ -206,9 +203,8 @@ final readonly class Message
             throw InvalidMessageException::unjsonableHeaderValue($key, 'a string is not valid UTF-8');
         }
 
-        // unreachable through withHeader(), whose parameter type excludes objects; the constructor
-        // bag is array<string, mixed> at runtime, so the top level needs the same refusal the
-        // nested levels always had
+        // unreachable through withHeader(), whose parameter type excludes objects; the constructor bag
+        // is array<string, mixed> at runtime, so the top level needs the refusal the nested levels have
         if (is_object($value)) {
             throw InvalidMessageException::unjsonableHeaderValue($key, sprintf('a %s object keeps a live reference, mutable from outside, and comes back as a plain array after the wire', $value::class));
         }
@@ -263,7 +259,9 @@ final readonly class Message
             $copy[$key] = is_array($value) ? self::detachHeaders($value, $depth + 1) : $value;
         }
 
-        return $copy; // @phpstan-ignore return.type (Every key and leaf type is preserved; only reference cells are detached.)
+        // Every key and leaf type is preserved; only reference cells are detached.
+        // @phpstan-ignore return.type
+        return $copy;
     }
 
     /**
@@ -315,10 +313,11 @@ final readonly class Message
     }
 
     /**
-     * The source stream id, for example `account-1`. Restored on every durable read: the event-store
-     * `stream` column and the outbox republish alike, the latter as `partition_key AS stream`, the
-     * same value under its ordering name. Null only fresh-from-domain, before the store assigned a
-     * stream.
+     * The source stream id, such as `account-1`.
+     *
+     * Every durable read restores it: the event-store `stream` column, and the outbox republish as
+     * `partition_key AS stream`, the same value under its ordering name. It is null only fresh from
+     * the domain, before the store assigned a stream.
      */
     public function streamName(): ?string
     {
@@ -336,8 +335,19 @@ final readonly class Message
     }
 
     /**
-     * The aggregate version this event was appended at, or null when the message carries none, such
-     * as a command, a query, or a fresh-from-domain message.
+     * The saga-issued mark a trusted neutral wire carries, the command's own message id.
+     *
+     * It is never ambient context: only the neutral serializer reads it, to rebuild the mark.
+     */
+    public function sagaCommandId(): ?string
+    {
+        return $this->stringHeader(Header::SagaCommandId);
+    }
+
+    /**
+     * The aggregate version this event was appended at, or null when the message carries none.
+     *
+     * A command, a query or a message fresh from the domain carries none.
      *
      * @throws InvalidMessageException when the header is present but not an integer; a corrupt
      *                                 envelope surfaced rather than masked, because this value feeds
@@ -363,8 +373,9 @@ final readonly class Message
     }
 
     /**
-     * The message datetime from Header::OccurredAt, parsed back into a PointInTime. Distinct from
-     * the store's recorded_at.
+     * The message datetime from `Header::OccurredAt`, parsed back into a `PointInTime`.
+     *
+     * It is distinct from the store's `recorded_at`.
      *
      * @throws InvalidDateTimeException when the stored header is not a canonical Storm datetime
      */
@@ -377,7 +388,7 @@ final readonly class Message
 
     /**
      * @throws InvalidMessageException when the header is present but not a string: a corrupt value
-     *                                 must never read as the SAME null an absent one answers, since
+     *                                 must never read as the same null an absent one answers, since
      *                                 a silently lost correlation is a saga that never advances;
      *                                 the mirror of the `aggregateVersion()` refusal
      */

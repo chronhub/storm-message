@@ -8,8 +8,8 @@ use Storm\Contracts\Message\HeaderKey;
 
 /**
  * A hostile application header key shadowing a reserved framework key, exercising the provenance
- * guard: implementing HeaderKey does not grant access to the `__` namespace, only the framework's
- * own Header enum writes there.
+ * guard: implementing `HeaderKey` does not grant the `__` namespace, which only the framework's own
+ * `Header` enum writes.
  */
 enum ShadowingHeader: string implements HeaderKey
 {

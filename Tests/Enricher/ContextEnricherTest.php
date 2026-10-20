@@ -101,10 +101,8 @@ final class ContextEnricherTest extends TestCase
     #[DataProvider('lone_actor_halves')]
     public function a_message_carrying_half_an_actor_is_refused(Header $present, string $missingKey): void
     {
-        // Completing a lone half from the ambient context would forge a two-provenance identity, an
-        // actor that never existed anywhere; the half fails loud instead. Both orientations are run,
-        // and the refusal names which half it HAS and which it wants: the operator reading it has
-        // one header to go add, and a message that swapped them sends them to the wrong one.
+        // a lone half fails, since completing it would forge an actor that never existed; both orientations
+        // run, and the refusal names the half present and the half missing, the one header to add
         $context = new ContextValues(actorId: 'ambient-actor', actorType: 'service');
 
         $this->expectException(InvalidMessageException::class);

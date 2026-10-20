@@ -8,9 +8,12 @@ use Storm\Contracts\Message\DomainEvent;
 use Storm\Message\HasConstructablePayload;
 
 /**
- * Exercises the payload-backed event pattern: the trait owns the payload + codec, a static factory
- * builds the payload from typed args, a PHP 8.4 virtual hook reconstructs a typed value on read,
- * and `aggregateId()` reads the id from the payload.
+ * Exercises the payload-backed event pattern.
+ *
+ * - The trait owns the payload and its codec
+ * - A static factory builds the payload from typed arguments
+ * - A PHP 8.4 virtual hook rebuilds a typed value on read
+ * - `aggregateId()` reads the id from the payload
  */
 final class PayloadEvent implements DomainEvent
 {

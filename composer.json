@@ -8,7 +8,7 @@
         "php": ">=8.5",
         "chronhub/storm-clock": "self.version",
         "chronhub/storm-contracts": "self.version",
-        "chronhub/storm-support": "self.version",
+        "chronhub/storm-text": "self.version",
         "symfony/dependency-injection": "^8.1",
         "symfony/service-contracts": "^3.6",
         "symfony/uid": "^8.1"
